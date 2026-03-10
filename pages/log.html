@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Iron Log · Log Workout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../styles/theme.css"/>
+</head>
+<body>
+  <div class="header">
+    <div style="display:flex;align-items:baseline;">
+      <div class="brand">Iron Log</div>
+      <span class="brand-sub">TRAINING TRACKER</span>
+    </div>
+    <div style="display:flex;align-items:center;">
+      <nav class="nav" id="nav"></nav>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">☀</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div id="content"></div>
+  </div>
+
+  <div class="toast" id="toast" style="display:none;"></div>
+
+  <script type="module">
+    import { navHTML, logExerciseHTML, todayFormatted } from '../js/components.js';
+    import { PROGRAM, EXERCISES, effectiveSets } from '../js/program.js';
+    import { getCurrentWeek, addLog, getLogs } from '../js/storage.js';
+
+    // Nav
+    document.getElementById('nav').innerHTML = navHTML('log');
+
+    // Theme
+    const toggle = document.getElementById('theme-toggle');
+    if (localStorage.getItem('ironlog-theme') === 'light') document.body.classList.add('light-mode');
+    updateToggleIcon();
+    toggle.addEventListener('click', () => {
+      document.body.classList.toggle('light-mode');
+      localStorage.setItem('ironlog-theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+      updateToggleIcon();
+    });
+    function updateToggleIcon() {
+      toggle.textContent = document.body.classList.contains('light-mode') ? '☾' : '☀';
+    }
+
+    // Toast
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.display = 'block';
+      t.style.animation = 'none';
+      t.offsetHeight;
+      t.style.animation = '';
+      setTimeout(() => { t.style.display = 'none'; }, 2500);
+    }
+
+    const content = document.getElementById('content');
+    const params = new URLSearchParams(window.location.search);
+    const preselected = params.get('day');
+
+    if (preselected && PROGRAM.days[preselected]) {
+      renderLogForm(preselected);
+    } else {
+      renderDaySelect();
+    }
+
+    // ── Day selection screen ──
+
+    function renderDaySelect() {
+      const buttons = Object.entries(PROGRAM.days).map(([key, day]) => `
+        <button class="log-day-btn" data-day="${key}">
+          DAY ${key} — ${day.name.toUpperCase()}
+        </button>
+      `).join('');
+
+      const logs = getLogs();
+      let recentHTML = '';
+      if (logs.length > 0) {
+        const rows = logs.slice(-5).reverse().map(l => `
+          <div class="recent-row">
+            <span>Day ${l.day} — ${PROGRAM.days[l.day]?.name || l.day}</span>
+            <span>${l.date} · Wk ${l.week}</span>
+          </div>
+        `).join('');
+        recentHTML = `
+          <div style="margin-top:24px;">
+            <div class="recent-header">RECENT LOGS</div>
+            ${rows}
+          </div>
+        `;
+      }
+
+      content.innerHTML = `
+        <p style="color:var(--text-muted);font-size:14px;margin-bottom:16px;">
+          Select a workout to log.
+        </p>
+        <div class="log-day-select">${buttons}</div>
+        ${recentHTML}
+      `;
+
+      content.querySelectorAll('.log-day-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const day = btn.dataset.day;
+          history.replaceState(null, '', `?day=${day}`);
+          renderLogForm(day);
+        });
+      });
+    }
+
+    // ── Active log form ──
+
+    function renderLogForm(dayKey) {
+      const day = PROGRAM.days[dayKey];
+      const week = getCurrentWeek();
+
+      const exerciseForms = day.exercises.map(ex => {
+        const sets = effectiveSets(ex, week);
+        let weightLabel = 'WEIGHT (lb)';
+        if (ex.id === 'plank') weightLabel = 'SECONDS';
+        else if (ex.id === 'farmers-walk') weightLabel = 'STEPS';
+        return logExerciseHTML(ex, sets, weightLabel);
+      }).join('');
+
+      content.innerHTML = `
+        <div class="log-header">
+          <div class="log-title">DAY ${dayKey} — ${day.name.toUpperCase()}</div>
+          <button class="cancel-btn" id="cancel-btn">CANCEL</button>
+        </div>
+        ${exerciseForms}
+        <textarea class="log-notes" id="log-notes" placeholder="Notes (optional) — how did it feel?"></textarea>
+        <button class="save-btn" id="save-btn">SAVE WORKOUT</button>
+      `;
+
+      // Cancel
+      document.getElementById('cancel-btn').addEventListener('click', () => {
+        history.replaceState(null, '', window.location.pathname);
+        renderDaySelect();
+      });
+
+      // Save
+      document.getElementById('save-btn').addEventListener('click', () => {
+        const btn = document.getElementById('save-btn');
+        btn.disabled = true;
+        btn.textContent = 'SAVING...';
+
+        // Gather data from inputs
+        const exercises = {};
+        day.exercises.forEach(ex => {
+          const sets = effectiveSets(ex, week);
+          exercises[ex.id] = [];
+          for (let i = 0; i < sets; i++) {
+            const repsInput = content.querySelector(
+              `input[data-exercise="${ex.id}"][data-set="${i}"][data-field="reps"]`
+            );
+            const weightInput = content.querySelector(
+              `input[data-exercise="${ex.id}"][data-set="${i}"][data-field="weight"]`
+            );
+            exercises[ex.id].push({
+              reps: repsInput ? repsInput.value : '',
+              weight: weightInput ? weightInput.value : ''
+            });
+          }
+        });
+
+        const entry = {
+          date: todayFormatted(),
+          timestamp: Date.now(),
+          day: dayKey,
+          week: week,
+          exercises: exercises,
+          notes: document.getElementById('log-notes').value
+        };
+
+        const ok = addLog(entry);
+        if (ok) {
+          showToast('Workout saved!');
+          setTimeout(() => {
+            window.location.href = '../index.html';
+          }, 800);
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'SAVE WORKOUT';
+          showToast('Save failed — try again');
+        }
+      });
+    }
+  </script>
+</body>
+</html>

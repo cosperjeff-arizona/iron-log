@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Iron Log · Exercises</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../styles/theme.css"/>
+</head>
+<body>
+  <div class="header">
+    <div style="display:flex;align-items:baseline;">
+      <div class="brand">Iron Log</div>
+      <span class="brand-sub">TRAINING TRACKER</span>
+    </div>
+    <div style="display:flex;align-items:center;">
+      <nav class="nav" id="nav"></nav>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">☀</button>
+    </div>
+  </div>
+
+  <div class="container" id="content"></div>
+
+  <script type="module">
+    import { navHTML, exerciseListHTML, exerciseCardHTML } from '../js/components.js';
+    import { EXERCISES } from '../js/program.js';
+
+    // Nav
+    document.getElementById('nav').innerHTML = navHTML('exercises');
+
+    // Theme
+    const toggle = document.getElementById('theme-toggle');
+    if (localStorage.getItem('ironlog-theme') === 'light') document.body.classList.add('light-mode');
+    updateToggleIcon();
+    toggle.addEventListener('click', () => {
+      document.body.classList.toggle('light-mode');
+      localStorage.setItem('ironlog-theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+      updateToggleIcon();
+    });
+    function updateToggleIcon() {
+      toggle.textContent = document.body.classList.contains('light-mode') ? '☾' : '☀';
+    }
+
+    const content = document.getElementById('content');
+
+    function render() {
+      const params = new URLSearchParams(window.location.search);
+      const exerciseId = params.get('exercise');
+
+      if (exerciseId && EXERCISES[exerciseId]) {
+        content.innerHTML = `
+          <a href="./exercises.html" class="back-btn">← BACK</a>
+          ${exerciseCardHTML(exerciseId)}
+        `;
+      } else {
+        content.innerHTML = exerciseListHTML();
+      }
+    }
+
+    // Handle browser back/forward
+    window.addEventListener('popstate', render);
+    render();
+  </script>
+</body>
+</html>
