@@ -142,6 +142,18 @@
         renderDaySelect();
       });
 
+      // Cue toggles
+      content.querySelectorAll('.log-cue-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const exId = btn.dataset.toggle;
+          const panel = document.getElementById(`cues-${exId}`);
+          const icon = btn.querySelector('.log-cue-toggle-icon');
+          const expanded = panel.dataset.expanded === 'true';
+          panel.dataset.expanded = expanded ? 'false' : 'true';
+          icon.classList.toggle('expanded', !expanded);
+        });
+      });
+
       // Save
       document.getElementById('save-btn').addEventListener('click', () => {
         const btn = document.getElementById('save-btn');

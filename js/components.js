@@ -162,11 +162,33 @@ export function logExerciseHTML(exercise, sets, weightLabel) {
     </div>
   `).join('');
 
+  const cueItems = (info.cues || []).map((cue, i) => `
+    <div class="log-cue-item">
+      <span class="log-cue-num">${i + 1}</span>
+      <span>${cue}</span>
+    </div>
+  `).join('');
+
+  const noteHTML = exercise.note ? `<div class="log-ex-note">${exercise.note}</div>` : '';
+
   return `
     <div class="log-exercise" data-exercise-id="${exercise.id}">
       <div class="log-ex-header">
         <span class="log-ex-name">${info.name || exercise.id}</span>
         <span class="log-ex-target">Target: ${exercise.reps}</span>
+      </div>
+      ${noteHTML}
+      <button class="log-cue-toggle" data-toggle="${exercise.id}">
+        <span class="log-cue-toggle-icon">▸</span>
+        <span>Form cues</span>
+        <span class="log-cue-toggle-meta">${info.muscles || ''}</span>
+      </button>
+      <div class="log-cue-panel" id="cues-${exercise.id}" data-expanded="false">
+        <div class="log-cue-tags">
+          <span class="tag">${info.pattern || ''}</span>
+          <span class="tag">${info.equipment || ''}</span>
+        </div>
+        ${cueItems}
       </div>
       <div class="log-set-labels">
         <span class="log-label-set">SET</span>
