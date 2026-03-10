@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Iron Log · Schedule</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="./styles/theme.css"/>
+</head>
+<body>
+  <div class="header">
+    <div style="display:flex;align-items:baseline;">
+      <div class="brand">Iron Log</div>
+      <span class="brand-sub">TRAINING TRACKER</span>
+    </div>
+    <div style="display:flex;align-items:center;">
+      <nav class="nav" id="nav"></nav>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">☀</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div id="week-header"></div>
+    <div id="schedule"></div>
+    <div class="schedule-summary" id="summary"></div>
+  </div>
+
+  <div class="toast" id="toast" style="display:none;"></div>
+
+  <script type="module">
+    import { navHTML, weekHeaderHTML, dayCardHTML } from './js/components.js';
+    import { PROGRAM } from './js/program.js';
+    import { getCurrentWeek, advanceWeek, regressWeek, getCompletedDays } from './js/storage.js';
+
+    // Nav
+    document.getElementById('nav').innerHTML = navHTML('schedule');
+
+    // Theme
+    const toggle = document.getElementById('theme-toggle');
+    const savedTheme = localStorage.getItem('ironlog-theme');
+    if (savedTheme === 'light') document.body.classList.add('light-mode');
+    updateToggleIcon();
+
+    toggle.addEventListener('click', () => {
+      document.body.classList.toggle('light-mode');
+      const isLight = document.body.classList.contains('light-mode');
+      localStorage.setItem('ironlog-theme', isLight ? 'light' : 'dark');
+      updateToggleIcon();
+    });
+
+    function updateToggleIcon() {
+      toggle.textContent = document.body.classList.contains('light-mode') ? '☾' : '☀';
+    }
+
+    // Toast helper
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.display = 'block';
+      t.style.animation = 'none';
+      t.offsetHeight; // reflow
+      t.style.animation = '';
+      setTimeout(() => { t.style.display = 'none'; }, 2500);
+    }
+
+    // Render
+    function render() {
+      const week = getCurrentWeek();
+      const completed = getCompletedDays(week);
+
+      document.getElementById('week-header').innerHTML = weekHeaderHTML(week);
+      
+      const cards = Object.keys(PROGRAM.days).map(key =>
+        dayCardHTML(key, week, completed.has(key))
+      ).join('');
+      document.getElementById('schedule').innerHTML = cards;
+
+      document.getElementById('summary').textContent =
+        `${completed.size}/3 workouts completed this cycle`;
+
+      // Wire up week arrows
+      document.getElementById('week-prev').addEventListener('click', () => {
+        const w = regressWeek();
+        showToast(`Week ${w}: ${PROGRAM.weeks[w - 1].name}`);
+        render();
+      });
+      document.getElementById('week-next').addEventListener('click', () => {
+        const w = advanceWeek();
+        showToast(`Week ${w}: ${PROGRAM.weeks[w - 1].name}`);
+        render();
+      });
+    }
+
+    render();
+  </script>
+</body>
+</html>

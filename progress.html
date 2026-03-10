@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Iron Log · Progress</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../styles/theme.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="header">
+    <div style="display:flex;align-items:baseline;">
+      <div class="brand">Iron Log</div>
+      <span class="brand-sub">TRAINING TRACKER</span>
+    </div>
+    <div style="display:flex;align-items:center;">
+      <nav class="nav" id="nav"></nav>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">☀</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <select class="progress-select" id="exercise-select"></select>
+    <div id="charts"></div>
+  </div>
+
+  <script type="module">
+    import { navHTML } from '../js/components.js';
+    import { EXERCISES } from '../js/program.js';
+    import { getLogsForExercise } from '../js/storage.js';
+
+    // Nav
+    document.getElementById('nav').innerHTML = navHTML('progress');
+
+    // Theme
+    const toggle = document.getElementById('theme-toggle');
+    if (localStorage.getItem('ironlog-theme') === 'light') document.body.classList.add('light-mode');
+    updateToggleIcon();
+    toggle.addEventListener('click', () => {
+      document.body.classList.toggle('light-mode');
+      localStorage.setItem('ironlog-theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+      updateToggleIcon();
+      renderCharts(document.getElementById('exercise-select').value);
+    });
+    function updateToggleIcon() {
+      toggle.textContent = document.body.classList.contains('light-mode') ? '☾' : '☀';
+    }
+
+    // Build select
+    const select = document.getElementById('exercise-select');
+    Object.entries(EXERCISES).forEach(([id, ex]) => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = ex.name;
+      select.appendChild(opt);
+    });
+
+    select.addEventListener('change', () => renderCharts(select.value));
+
+    let weightChart = null;
+    let volumeChart = null;
+
+    function getChartColors() {
+      const isLight = document.body.classList.contains('light-mode');
+      return {
+        accent: isLight ? '#a86a2e' : '#c17f3e',
+        blue: isLight ? '#3a78a8' : '#4a90c2',
+        grid: isLight ? '#ddd5c8' : '#2a2a2a',
+        text: isLight ? '#6b6b6b' : '#888',
+        surface: isLight ? '#ffffff' : '#1e1e1e',
+        border: isLight ? '#ddd5c8' : '#2a2a2a'
+      };
+    }
+
+    function renderCharts(exerciseId) {
+      const data = getLogsForExercise(exerciseId);
+      const chartsEl = document.getElementById('charts');
+      const colors = getChartColors();
+
+      if (data.length === 0) {
+        chartsEl.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">—</div>
+            <div style="font-size:14px;">No data yet for ${EXERCISES[exerciseId].name}.</div>
+            <div style="font-size:13px;margin-top:4px;">Log a workout that includes this exercise to see progress.</div>
+          </div>
+        `;
+        if (weightChart) { weightChart.destroy(); weightChart = null; }
+        if (volumeChart) { volumeChart.destroy(); volumeChart = null; }
+        return;
+      }
+
+      chartsEl.innerHTML = `
+        <div class="chart-container">
+          <div class="chart-label">MAX WEIGHT (LB)</div>
+          <canvas id="weight-chart" class="chart-canvas"></canvas>
+        </div>
+        <div class="chart-container">
+          <div class="chart-label">TOTAL VOLUME (REPS × WEIGHT)</div>
+          <canvas id="volume-chart" class="chart-canvas"></canvas>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value">${data.length}</div>
+            <div class="stat-label">SESSIONS</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${Math.max(...data.map(d => d.maxWeight))} lb</div>
+            <div class="stat-label">PEAK WEIGHT</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${Math.max(...data.map(d => d.totalVolume)).toLocaleString()}</div>
+            <div class="stat-label">PEAK VOLUME</div>
+          </div>
+        </div>
+      `;
+
+      const labels = data.map(d => d.date);
+
+      const baseOpts = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: colors.surface,
+            titleColor: colors.text,
+            bodyColor: colors.text,
+            borderColor: colors.border,
+            borderWidth: 1
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: colors.grid },
+            ticks: { color: colors.text, font: { size: 11 } }
+          },
+          y: {
+            grid: { color: colors.grid },
+            ticks: { color: colors.text, font: { size: 11 } }
+          }
+        }
+      };
+
+      // Destroy old charts
+      if (weightChart) weightChart.destroy();
+      if (volumeChart) volumeChart.destroy();
+
+      weightChart = new Chart(document.getElementById('weight-chart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            data: data.map(d => d.maxWeight),
+            borderColor: colors.accent,
+            backgroundColor: colors.accent + '33',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointBackgroundColor: colors.accent,
+            tension: 0.2,
+            fill: true
+          }]
+        },
+        options: baseOpts
+      });
+
+      volumeChart = new Chart(document.getElementById('volume-chart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            data: data.map(d => d.totalVolume),
+            borderColor: colors.blue,
+            backgroundColor: colors.blue + '33',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointBackgroundColor: colors.blue,
+            tension: 0.2,
+            fill: true
+          }]
+        },
+        options: baseOpts
+      });
+    }
+
+    // Initial render
+    renderCharts(select.value);
+  </script>
+</body>
+</html>
